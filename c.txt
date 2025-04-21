@@ -1,0 +1,1157 @@
+Assignment 1:
+
+
+from pyspark.sql import SparkSession
+from pyspark.ml.feature import VectorAssembler, StandardScaler, PCA      #Vest plz
+import matplotlib.pyplot as plt
+
+# Start Spark session
+spark = SparkSession.builder.appName("PCAExample").getOrCreate()
+
+# Load and clean data
+df = spark.read.csv('/content/retail_store_sales.csv', header=True, inferSchema=True).fillna(0)
+
+# Select numeric columns
+num_cols = [col for col, dtype in df.dtypes if dtype in ('int', 'double')]
+
+# Assemble and scale features
+vec = VectorAssembler(inputCols=num_cols, outputCol='features').transform(df)
+scaled = StandardScaler(inputCol='features', outputCol='scaled').fit(vec).transform(vec)
+
+# Apply PCA
+pca_data = PCA(k=2, inputCol='scaled', outputCol='pca').fit(scaled).transform(scaled)   #outputCol='pca' stores the 1st and 2nd principal components as 2D vectors.
+
+# Collect for plotting
+points = pca_data.select('pca').collect()     #here, we are collecting the PCA vectors in the 'pca' column as a python list
+x = [row['pca'][0] for row in points]         #here we are extracting the 1st and 2nd principal components for plotting.
+y = [row['pca'][1] for row in points]
+
+# Plot
+plt.scatter(x, y)
+plt.title('PCA Plot')
+plt.xlabel('PC1')
+plt.ylabel('PC2')
+plt.show()
+
+spark.stop()
+
+
+
+
+
+Explanation:
+
+Here's a **step-by-step explanation** of your simplified PySpark PCA code:
+
+---
+
+### 🔹 **1. Import Required Libraries**
+```python
+from pyspark.sql import SparkSession
+from pyspark.ml.feature import VectorAssembler, StandardScaler, PCA
+import matplotlib.pyplot as plt
+```
+- `SparkSession`: Used to create a Spark app.
+- `VectorAssembler`: Combines multiple columns into a single vector column (needed for ML models).
+- `StandardScaler`: Normalizes data (important before PCA).
+- `PCA`: Reduces dimensionality of data.
+- `matplotlib.pyplot`: For plotting results.
+
+---
+
+### 🔹 **2. Start Spark Session**
+```python
+spark = SparkSession.builder.appName("PCAExample").getOrCreate()
+```
+- Starts a new Spark application named `"PCAExample"`.
+
+---
+
+### 🔹 **3. Load and Clean Data**
+```python
+df = spark.read.csv('/content/retail_store_sales.csv', header=True, inferSchema=True).fillna(0)
+```
+- Loads a CSV file.
+- `header=True`: Uses first row as column names.
+- `inferSchema=True`: Automatically detects data types.
+- `fillna(0)`: Replaces missing values with 0.
+
+---
+
+### 🔹 **4. Select Numeric Columns Only**
+```python
+num_cols = [col for col, dtype in df.dtypes if dtype in ('int', 'double')]
+```
+- Filters and stores only numeric columns (required for PCA).
+
+---
+
+### 🔹 **5. Assemble Features and Scale**
+```python
+vec = VectorAssembler(inputCols=num_cols, outputCol='features').transform(df)
+scaled = StandardScaler(inputCol='features', outputCol='scaled').fit(vec).transform(vec)
+```
+- `VectorAssembler`: Combines numeric columns into a single feature vector.
+- `StandardScaler`: Normalizes feature values (zero mean, unit variance), which is important for PCA.
+
+---
+
+### 🔹 **6. Apply PCA**
+```python
+pca_data = PCA(k=2, inputCol='scaled', outputCol='pca').fit(scaled).transform(scaled)
+```
+- Applies **Principal Component Analysis (PCA)** to reduce the feature space to 2 principal components.
+- Output column `'pca'` contains 2D vectors.
+
+---
+
+### 🔹 **7. Prepare Data for Plotting**
+```python
+points = pca_data.select('pca').collect()
+x = [row['pca'][0] for row in points]
+y = [row['pca'][1] for row in points]
+```
+- Collects the reduced PCA vectors to the driver as a Python list.
+- Extracts the first and second components for plotting.
+
+---
+
+### 🔹 **8. Plot PCA Results**
+```python
+plt.scatter(x, y)
+plt.title('PCA Plot')
+plt.xlabel('PC1')
+plt.ylabel('PC2')
+plt.show()
+```
+- Creates a scatter plot using the two principal components.
+- Helps visualize high-dimensional data in 2D.
+
+---
+
+### 🔹 **9. Stop Spark Session**
+```python
+spark.stop()
+```
+- Gracefully shuts down the Spark application.
+
+---
+
+Let me know if you want a diagram or a real data example with this!
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Assignment 2:
+
+
+
+from pyspark.sql import SparkSession
+from pyspark.ml.feature import VectorAssembler, StandardScaler
+from pyspark.ml.clustering import KMeans
+import matplotlib.pyplot as plt
+
+# Step 1: Start Spark session
+spark = SparkSession.builder.appName("SimpleKMeans").getOrCreate()
+
+# Step 2: Read the CSV file
+df = spark.read.csv('/content/retail_store_sales.csv', header=True, inferSchema=True)
+
+# Step 3: Fill missing values with 0
+df = df.fillna(0)
+
+# Step 4: Select numeric columns
+numeric_cols = [c for c, t in df.dtypes if t in ('int', 'double')]
+
+# Step 5: Assemble numeric columns into a feature vector
+assembler = VectorAssembler(inputCols=numeric_cols, outputCol='features')
+df_features = assembler.transform(df)
+
+# Step 6: Scale features (recommended before KMeans)
+scaler = StandardScaler(inputCol='features', outputCol='scaled_features')
+scaler_model = scaler.fit(df_features)
+df_scaled = scaler_model.transform(df_features)
+
+# Step 7: Apply KMeans clustering (choose 3 clusters)
+kmeans = KMeans(featuresCol='scaled_features', k=3, seed=1)
+kmeans_model = kmeans.fit(df_scaled)
+df_clustered = kmeans_model.transform(df_scaled)
+
+# Step 8: Show some clustered data
+df_clustered.select('prediction').show(10)
+
+# (Optional) Step 9: Collect data to plot (first 2 features only)
+data = df_clustered.select('scaled_features', 'prediction').collect()
+
+# Extract 2 features (x, y) and prediction for plotting
+x = [row['scaled_features'][0] for row in data]
+y = [row['scaled_features'][1] for row in data]
+labels = [row['prediction'] for row in data]
+
+# Step 10: Plot the KMeans clustering result (just for visualization)
+plt.scatter(x, y, c=labels, cmap='viridis')
+plt.title('KMeans Clustering (PySpark)')
+plt.xlabel('Feature 1')
+plt.ylabel('Feature 2')
+plt.colorbar(label='Cluster')
+plt.grid(True)
+plt.show()
+
+# Step 11: Stop Spark session
+spark.stop()
+
+
+
+
+
+
+Explanation:
+
+
+🔹 1. What Was Done?
+
+•	We used KMeans Clustering, a machine learning technique, to group similar data points in our dataset.
+
+•	The dataset contains sales data (like store sales, customer purchases, or transactions).
+
+•	We asked the algorithm to divide the data into 3 groups (clusters) based on similarities.
+
+Think of it as grouping similar stores or customers who behave alike, based on their sales numbers or spending patterns.
+________________________________________
+🔹 2. What Does the Output Show?
+
+Table Output
+
++----------+
+
+|prediction|
+
++----------+
+
+|         1|
+
+|         2|
+
+|         0|
+
+|         2|
+
+|         1|
+
+|         1|
+
+|         1|
+
+|         1|
+
+|         0|
+
+|         0|
+
++----------+
+
+•	Each row of your data (each customer or store) has been assigned a cluster label, either 0, 1, or 2.
+
+•	These labels represent the group they belong to:
+
+o	Cluster 0: One type of behavior.
+
+o	Cluster 1: Another type.
+
+o	Cluster 2: Yet another group.
+
+For example:
+
+•	If a store is in Cluster 2, it behaves differently from stores in Clusters 0 or 1.
+________________________________________
+Scatter Plot
+
+•	The plot shows two features (e.g., sales and revenue) on the x-axis and y-axis.
+
+•	Each point is a store/customer, colored by its cluster (0, 1, or 2).
+
+•	We can clearly see:
+
+o	Points that are close together behave similarly and are in the same group.
+
+o	Clusters are separated, meaning the algorithm successfully found patterns in the data.
+________________________________________
+🔹 3. What Can We Infer?
+
+✅ Segmentation:
+
+•	The data points have been grouped based on similarity.
+
+•	For example:
+
+o	Cluster 0 might be low-spending customers or stores with low sales.
+
+o	Cluster 1 might be average-spending customers or medium sales stores.
+
+o	Cluster 2 might represent high-spending customers or stores with high sales.
+
+✅ Actionable Insights:
+
+•	You can analyze each group separately and create different strategies for each:
+
+o	Offer discounts to Cluster 0 to improve sales.
+
+o	Reward Cluster 2 customers for their loyalty.
+
+o	Focus marketing efforts differently based on cluster behavior.
+
+✅ Business Understanding:
+
+•	You've turned raw data into understandable groups.
+
+•	Helps management make decisions based on data-driven insights.
+
+•	Useful for:
+
+o	Customer segmentation
+
+o	Targeted marketing
+
+o	Sales analysis
+
+o	Inventory management, etc.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Assignment 3:
+
+
+
+
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, unix_timestamp, to_timestamp
+from pyspark.ml.feature import StringIndexer, VectorAssembler
+from pyspark.ml.regression import LinearRegression
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Step 1: Initialize Spark Session
+spark = SparkSession.builder.appName("TimeSeriesTrafficForecast").getOrCreate()
+
+# Step 2: Load Dataset
+df = spark.read.csv("/content/traffic_dataset_with_trend (1).csv", header=True, inferSchema=True)
+
+# Inspect dataset
+df.printSchema()
+df.show(5)
+
+# Step 3: Handle Data Type Issues
+# Convert 'Timestamp' column to proper datetime format
+df = df.withColumn("Timestamp", to_timestamp(col("Timestamp")))
+
+# Convert Boolean 'Events' column to String
+df = df.withColumn("Events", col("Events").cast("string"))
+
+# Step 4: Handle Categorical Variables
+# StringIndexer for "Weather" and "Events"
+indexer_weather = StringIndexer(inputCol="Weather", outputCol="Weather_Index")
+indexer_events = StringIndexer(inputCol="Events", outputCol="Events_Index")
+
+df = indexer_weather.fit(df).transform(df)
+df = indexer_events.fit(df).transform(df)
+
+# Step 5: Feature Engineering
+# Convert timestamp to numeric feature (Unix Timestamp)
+df = df.withColumn("Timestamp_Unix", unix_timestamp(col("Timestamp")))
+
+# Assemble features into a single vector
+feature_cols = ["Timestamp_Unix", "Weather_Index", "Events_Index"]
+vector_assembler = VectorAssembler(inputCols=feature_cols, outputCol="features")
+df = vector_assembler.transform(df)
+
+# Step 6: Train-Test Split
+train_data, test_data = df.randomSplit([0.8, 0.2], seed=42)
+
+# Step 7: Train a Model (Linear Regression)
+lr = LinearRegression(featuresCol="features", labelCol="Traffic Volume")
+lr_model = lr.fit(train_data)
+
+# Evaluate Model on Test Data
+predictions = lr_model.transform(test_data)
+predictions.select("Timestamp", "Traffic Volume", "prediction").show(5)
+
+# Step 8: Visualization (Traffic Trends Over Time)
+df_pd = df.select("Timestamp", "Traffic Volume").toPandas()
+df_pd.set_index("Timestamp", inplace=True)
+
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=df_pd, x=df_pd.index, y="Traffic Volume")
+plt.xlabel("Date")
+plt.ylabel("Traffic Volume")
+plt.title("Traffic Volume Over Time")
+plt.show()
+
+
+
+
+
+
+
+Explanation:
+
+
+Code explanation:
+
+This code uses **PySpark** for data processing and **Linear Regression** to predict **traffic volume** over time, while visualizing the traffic volume trends. Here's a detailed explanation of each part of the code:
+
+### 1. **Initialization of Spark Session:**
+```python
+spark = SparkSession.builder.appName("TimeSeriesTrafficForecast").getOrCreate()
+```
+- A **SparkSession** is initialized, which is required to interact with Spark. The `.appName("TimeSeriesTrafficForecast")` method names the session for identification purposes. The `getOrCreate()` method either retrieves an existing session or creates a new one.
+
+### 2. **Load Dataset:**
+```python
+df = spark.read.csv("/content/traffic_dataset_with_trend (1).csv", header=True, inferSchema=True)
+```
+- The dataset is loaded into a Spark DataFrame using `spark.read.csv()`.
+  - The `header=True` argument ensures the first row is interpreted as column names.
+  - The `inferSchema=True` argument automatically infers the data types of each column.
+
+```python
+df.printSchema()
+df.show(5)
+```
+- `df.printSchema()` prints the schema of the dataset, showing column names and data types.
+- `df.show(5)` shows the first 5 rows of the dataset to inspect the data.
+
+### 3. **Handle Data Type Issues:**
+```python
+df = df.withColumn("Timestamp", to_timestamp(col("Timestamp")))
+```
+- Converts the `Timestamp` column to a proper **datetime** format using the `to_timestamp` function. This is important for time-based analysis.
+
+```python
+df = df.withColumn("Events", col("Events").cast("string"))
+```
+- Converts the `Events` column (which might be boolean) into a **string** type for easier processing and manipulation later.
+
+### 4. **Handle Categorical Variables:**
+```python
+indexer_weather = StringIndexer(inputCol="Weather", outputCol="Weather_Index")
+indexer_events = StringIndexer(inputCol="Events", outputCol="Events_Index")
+```
+- **StringIndexer** is used to convert categorical columns (like `Weather` and `Events`) into numeric values (indexes). This is necessary because machine learning algorithms typically require numerical input.
+  - `Weather_Index` and `Events_Index` are the new columns that will contain numeric representations of the categorical values.
+
+```python
+df = indexer_weather.fit(df).transform(df)
+df = indexer_events.fit(df).transform(df)
+```
+- `.fit()` computes the index mapping for the `Weather` and `Events` columns.
+- `.transform()` applies the transformation to the DataFrame, adding the indexed columns.
+
+### 5. **Feature Engineering:**
+```python
+df = df.withColumn("Timestamp_Unix", unix_timestamp(col("Timestamp")))
+```
+- Converts the `Timestamp` column into a **Unix timestamp** (numeric representation of time), which will be used as a feature for prediction.
+
+```python
+feature_cols = ["Timestamp_Unix", "Weather_Index", "Events_Index"]
+vector_assembler = VectorAssembler(inputCols=feature_cols, outputCol="features")
+df = vector_assembler.transform(df)
+```
+- **VectorAssembler** combines multiple feature columns into a single vector column, which is needed for machine learning models in Spark.
+  - The columns `Timestamp_Unix`, `Weather_Index`, and `Events_Index` are combined into the `features` column.
+
+### 6. **Train-Test Split:**
+```python
+train_data, test_data = df.randomSplit([0.8, 0.2], seed=42)
+```
+- The dataset is split into training and testing sets. 80% of the data is used for training, and 20% for testing.
+- The `seed=42` ensures reproducibility of the split.
+
+### 7. **Train a Model (Linear Regression):**
+```python
+lr = LinearRegression(featuresCol="features", labelCol="Traffic Volume")
+lr_model = lr.fit(train_data)
+```
+- A **Linear Regression** model is created using the `features` column for the input and the `Traffic Volume` column as the label (target).
+- The model is then trained (`fit()`) on the training data.
+
+```python
+predictions = lr_model.transform(test_data)
+predictions.select("Timestamp", "Traffic Volume", "prediction").show(5)
+```
+- The trained model is used to make predictions on the test data.
+- The `select()` method extracts the `Timestamp`, actual `Traffic Volume`, and predicted values (`prediction`) for inspection. The first 5 predictions are displayed.
+
+### 8. **Visualization (Traffic Trends Over Time):**
+```python
+df_pd = df.select("Timestamp", "Traffic Volume").toPandas()
+df_pd.set_index("Timestamp", inplace=True)
+```
+- The Spark DataFrame is converted into a **Pandas DataFrame** for easier manipulation and plotting.
+- The `Timestamp` column is set as the index of the Pandas DataFrame for time-based plotting.
+
+```python
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=df_pd, x=df_pd.index, y="Traffic Volume")
+plt.xlabel("Date")
+plt.ylabel("Traffic Volume")
+plt.title("Traffic Volume Over Time")
+plt.show()
+```
+- A **line plot** is created using **Seaborn** (`sns.lineplot()`) to visualize the trend of traffic volume over time.
+- The plot is displayed with the `Timestamp` (as the index) on the x-axis and `Traffic Volume` on the y-axis.
+- The plot is given labels and a title for clarity.
+
+### Summary of the Code's Purpose:
+1. **Data Loading & Preprocessing**: It loads a traffic dataset, handles data types (e.g., converting `Timestamp` and `Events`), and converts categorical variables into numeric indices.
+2. **Feature Engineering**: The `Timestamp` is converted into a Unix timestamp, and relevant features (such as weather and events) are assembled into a feature vector.
+3. **Model Training**: A linear regression model is trained to predict traffic volume using the features.
+4. **Model Evaluation**: Predictions are made on the test data and compared to actual traffic volumes.
+5. **Visualization**: A line plot is generated to show how traffic volume changes over time.
+
+The code is essentially designed for **predicting traffic volume** based on time, weather conditions, and events, while also visualizing the traffic trends over time.
+
+
+
+
+
+Result Interpretation:  
+
+To explain this result to someone else, let's break it down clearly and step by step, focusing on the key aspects of the output and what insights we can derive.
+
+### **1. Context of the Result**
+The result is showing a comparison between the **actual traffic volume** and the **predicted traffic volume** at different times on **January 1st, 2023**. The goal of the model was to predict traffic volume based on certain factors, such as the **timestamp**, **weather conditions**, and **events** that could impact traffic.
+
+### **2. Understanding the Columns**
+The output consists of the following columns:
+- **Timestamp**: The specific time at which traffic volume was recorded.
+- **Traffic Volume**: The actual traffic volume at that time.
+- **Prediction**: The traffic volume predicted by the machine learning model for that same timestamp.
+
+### **3. Interpreting the Specific Results**
+Here's a quick look at each row in the result and how to interpret it:
+
+#### **Row 1: `2023-01-01 02:00:00`**
+- **Actual Traffic Volume**: 582.0
+- **Predicted Traffic Volume**: 1068.27
+- **Interpretation**: The model predicted **1068.27** traffic volume, but the actual traffic volume was much lower at **582.0**. The model **over-predicted** the traffic volume for this time period. This suggests that, at this time of day (early morning), traffic is lighter than expected.
+
+#### **Row 2: `2023-01-01 06:00:00`**
+- **Actual Traffic Volume**: 3713.0
+- **Predicted Traffic Volume**: 2856.79
+- **Interpretation**: The model predicted **2856.79**, but the actual traffic was **3713.0**, indicating that the model **under-predicted** the traffic. This might suggest that during this time (early morning), the model didn't fully capture the increase in traffic.
+
+#### **Row 3: `2023-01-01 08:00:00`**
+- **Actual Traffic Volume**: 4234.0
+- **Predicted Traffic Volume**: 2849.78
+- **Interpretation**: The model predicted **2849.78**, but the actual traffic volume was **4234.0**, which is significantly higher. The model **under-predicted** the traffic again at a busier time in the morning. This suggests that the model might be missing some key factors that influence morning traffic volume.
+
+#### **Row 4: `2023-01-01 13:00:00`**
+- **Actual Traffic Volume**: 2953.0
+- **Predicted Traffic Volume**: 2853.33
+- **Interpretation**: The model's prediction is **2853.33**, which is very close to the actual traffic volume of **2953.0**. This indicates that the model performed well during this period and was able to predict the traffic volume with relatively low error.
+
+#### **Row 5: `2023-01-01 19:00:00`**
+- **Actual Traffic Volume**: 1293.0
+- **Predicted Traffic Volume**: 1075.43
+- **Interpretation**: The model predicted **1075.43**, while the actual traffic volume was **1293.0**, meaning it **under-predicted** the traffic slightly. This shows that the model might not be fully capturing factors that influence evening traffic, which could differ from daytime traffic patterns.
+
+### **4. What We Can Infer from the Results**
+
+1. **Model Performance**:
+   - The model does fairly well at certain times of the day (e.g., around **1 PM**), where the predicted traffic volume is close to the actual value.
+   - However, it struggles during early mornings (like at **2 AM**) and busy periods (like **8 AM**), either over-predicting or under-predicting the traffic volume. This suggests that the model is not perfect and may need adjustments.
+
+2. **Traffic Prediction Challenges**:
+   - The model seems to be **over-predicting during off-peak hours (like early morning)** and **under-predicting during peak hours (like 8 AM)**. This suggests that the model might not be fully capturing the nuances of traffic patterns at different times of day.
+   - **External factors** like weather, holidays, or unexpected events could be influencing traffic volume in ways that the model isn't accounting for, leading to errors in its predictions.
+
+3. **Areas for Improvement**:
+   - The model could benefit from **more features** or **additional data** that account for other factors, such as specific events happening in the area, holidays, or more granular weather data.
+   - Another improvement might involve trying different machine learning models, as **Linear Regression** may not be the best fit for this type of time-series data. For example, models that account for **seasonality** or **non-linear relationships** (like Random Forest, Gradient Boosting, or even deep learning) could yield better predictions.
+
+4. **Practical Implication**:
+   - If the goal is to forecast traffic for things like **urban planning** or **transportation management**, the model can still provide valuable insights but should be considered as one tool among many. The inaccuracies in prediction show that more fine-tuned models could be more reliable.
+   - For businesses like **ride-hailing companies** or **logistics companies**, this kind of traffic prediction could help plan for optimal routes or manage vehicle fleets more effectively, but they should be aware of the model's limitations.
+
+### **5. Key Takeaway**
+The model shows **mixed performance** — it can predict traffic reasonably well during some times of the day, but it struggles to capture the full complexity of traffic patterns at other times. This highlights the importance of refining the model and incorporating more factors to improve the accuracy of predictions.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Assignment 4:
+
+
+
+import time
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+from pyspark.ml.feature import Tokenizer, StopWordsRemover, HashingTF, IDF
+from pyspark.ml.classification import LogisticRegression
+from pyspark.ml import Pipeline
+
+# Initialize Spark session
+spark = SparkSession.builder.appName("SentimentAnalysis").getOrCreate()
+
+# Start execution time measurement
+start_time = time.time()
+
+# Load dataset
+train_data_path = "train_E6oV3lV.csv"
+test_data_path = "test_tweets_anuFYb8.csv"
+
+df_train = spark.read.csv(train_data_path, header=True, inferSchema=True)
+df_test = spark.read.csv(test_data_path, header=True, inferSchema=True)
+
+# Select required columns
+
+df_train = df_train.select(col("tweet"), col("label"))
+df_test = df_test.select(col("tweet"))
+
+# Tokenization
+tokenizer = Tokenizer(inputCol="tweet", outputCol="words")
+
+# Remove stopwords
+remover = StopWordsRemover(inputCol="words", outputCol="filtered_words")
+
+# Convert words to numerical features using TF-IDF
+hashing_tf = HashingTF(inputCol="filtered_words", outputCol="raw_features",
+numFeatures=10000)
+idf = IDF(inputCol="raw_features", outputCol="features")
+
+# Logistic Regression model
+lr = LogisticRegression(featuresCol="features", labelCol="label")
+
+# Create pipeline
+pipeline = Pipeline(stages=[tokenizer, remover, hashing_tf, idf, lr])
+
+# Train model
+model = pipeline.fit(df_train)
+
+# Make predictions
+
+predictions = model.transform(df_test)
+
+# End execution time measurement
+end_time = time.time()
+execution_time = end_time - start_time
+print(f"Execution Time: {execution_time:.2f} seconds")
+
+# Show predictions
+predictions.select("tweet", "prediction").show(10)
+
+# Stop Spark session
+spark.stop()
+
+
+
+
+
+
+Explanation:
+
+
+
+
+---
+
+## ✅ Code Explanation (Step-by-Step)
+
+### 📌 **1. Import Libraries**
+```python
+import time
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+from pyspark.ml.feature import Tokenizer, StopWordsRemover, HashingTF, IDF
+from pyspark.ml.classification import LogisticRegression
+from pyspark.ml import Pipeline
+```
+- `time`: To measure how long the process takes.
+- `SparkSession`: Entry point for working with **Spark**.
+- `col`: For selecting specific columns from data.
+- `Tokenizer`, `StopWordsRemover`, `HashingTF`, `IDF`: Preprocessing tools for **text** data.
+- `LogisticRegression`: Your **classification algorithm**.
+- `Pipeline`: Organizes all stages into a **single workflow**.
+
+---
+
+### 📌 **2. Start Spark Session**
+```python
+spark = SparkSession.builder.appName("SentimentAnalysis").getOrCreate()
+```
+- Initializes a **Spark session** with the name `SentimentAnalysis`.
+- Spark allows you to process **large datasets** in a **distributed manner**.
+
+---
+
+### 📌 **3. Start Execution Time Measurement**
+```python
+start_time = time.time()
+```
+- Starts a **timer** to measure how long the model takes to run.
+
+---
+
+### 📌 **4. Load Dataset**
+```python
+train_data_path = "train_E6oV3lV.csv"
+test_data_path = "test_tweets_anuFYb8.csv"
+
+df_train = spark.read.csv(train_data_path, header=True, inferSchema=True)
+df_test = spark.read.csv(test_data_path, header=True, inferSchema=True)
+```
+- Loads two CSV files into **Spark DataFrames**:
+  - `df_train`: Has **tweets** and their **labels** (positive/negative sentiment).
+  - `df_test`: Has only **tweets**, no labels (you want to predict them).
+
+- `header=True`: Use the first row as column names.
+- `inferSchema=True`: Automatically detects data types.
+
+---
+
+### 📌 **5. Select Required Columns**
+```python
+df_train = df_train.select(col("tweet"), col("label"))
+df_test = df_test.select(col("tweet"))
+```
+- Keeps only the important columns:
+  - `tweet`: The text.
+  - `label`: Sentiment (only in training data).
+
+---
+
+### 📌 **6. Preprocessing Stages**
+#### 🔹 **Tokenizer**
+```python
+tokenizer = Tokenizer(inputCol="tweet", outputCol="words")
+```
+- Breaks the tweet into individual **words**.
+#### Example:
+```
+Tweet: "I love Spark!"
+Tokens: ["I", "love", "Spark!"]
+```
+
+#### 🔹 **StopWordsRemover**
+```python
+remover = StopWordsRemover(inputCol="words", outputCol="filtered_words")
+```
+- Removes **common words** (like "the", "is", "and") that don’t add value.
+#### Example:
+```
+Tokens before: ["I", "love", "Spark"]
+After stopword removal: ["love", "Spark"]
+```
+
+#### 🔹 **HashingTF (Term Frequency)**
+```python
+hashing_tf = HashingTF(inputCol="filtered_words", outputCol="raw_features", numFeatures=10000)
+```
+- Converts words into **numeric feature vectors**.
+- Uses a **hashing trick** to map words to numbers.
+#### Example:
+```
+["love", "Spark"] → [0, 1, 3, 0, ...]
+```
+
+#### 🔹 **IDF (Inverse Document Frequency)**
+```python
+idf = IDF(inputCol="raw_features", outputCol="features")
+```
+- Scales the TF values to reduce the impact of **common words** and highlight **important words**.
+
+---
+
+### 📌 **7. Define Classifier (Logistic Regression)**
+```python
+lr = LogisticRegression(featuresCol="features", labelCol="label")
+```
+- **Supervised learning** algorithm.
+- Learns from `features` (text represented as numbers) and `label` (sentiment).
+- Output is a **binary prediction**:
+  - `0.0`: Negative
+  - `1.0`: Positive
+
+---
+
+### 📌 **8. Create Pipeline**
+```python
+pipeline = Pipeline(stages=[tokenizer, remover, hashing_tf, idf, lr])
+```
+- Combines all preprocessing and the classifier into a **single workflow**.
+- Spark Pipelines are like **assembly lines**, where data flows through **multiple stages**.
+
+---
+
+### 📌 **9. Train Model**
+```python
+model = pipeline.fit(df_train)
+```
+- Fits (trains) the pipeline on your **training data**.
+- The model learns how to **predict sentiment** by processing tweets and finding patterns.
+
+---
+
+### 📌 **10. Make Predictions**
+```python
+predictions = model.transform(df_test)
+```
+- Applies the trained model to the **test dataset** (unlabeled tweets).
+- The model predicts whether each tweet is **positive** or **negative**.
+
+---
+
+### 📌 **11. Measure and Show Execution Time**
+```python
+end_time = time.time()
+execution_time = end_time - start_time
+print(f"Execution Time: {execution_time:.2f} seconds")
+```
+- Calculates how long the entire process took.
+- Prints the execution time (e.g., `26.80 seconds`).
+
+---
+
+### 📌 **12. Show Predictions**
+```python
+predictions.select("tweet", "prediction").show(10)
+```
+- Displays the first 10 rows:
+  - `tweet`: The text.
+  - `prediction`: The predicted sentiment label (`0.0` or `1.0`).
+
+---
+
+### 📌 **13. Stop Spark Session**
+```python
+spark.stop()
+```
+- Closes the Spark session.
+- Frees up resources.
+
+---
+
+## ✅ Link to the Output
+
+```
+Execution Time: 26.80 seconds
++--------------------+----------+
+|               tweet|prediction|
++--------------------+----------+
+|#studiolife #aisl...|       0.0|
+|  @user #white #su...|       0.0|
+|safe ways to heal...|       0.0|
+|is the hp and the...|       0.0|
+| 3rd #bihday to ... |       0.0|
+|choose to be   :)...|       0.0|
+|something inside ...|       1.0|
+|#finished#tattoo#...|       0.0|
+| @user @user @use...|       0.0|
+|#delicious  #foo...|       0.0|
++--------------------+----------+
+```
+
+- The **model predicted sentiment** for each tweet.
+- Most predictions are `0.0` (negative sentiment).
+- **Execution Time** was around **27 seconds**, which is efficient for Spark-based processing.
+
+---
+
+## ✅ Key Takeaways
+
+| Section                | Summary                                                                                 |
+|------------------------|-----------------------------------------------------------------------------------------|
+| **Pipeline**           | Automates preprocessing + model training + prediction.                                  |
+| **Logistic Regression**| Basic model good for simple binary classification but may need improvement.             |
+| **Preprocessing**      | Text is tokenized, cleaned, and converted into numerical vectors (TF-IDF).              |
+| **Performance**        | Execution time is measured; predictions show model inference speed and scalability.     |
+
+---
+
+## ✅ What You Can Improve
+- Add **model evaluation** (accuracy, precision, recall) on a **labeled test set**.
+- Handle **class imbalance** if too many negatives are predicted.
+- Try **better models** (Random Forest, XGBoost, Deep Learning like LSTM or BERT).
+- Enhance **feature extraction** (n-grams, embeddings, sentiment lexicons).
+
+---
+
+
+
+
+
+
+
+
+
+
+
+
+Assignment 5:
+
+
+
+from pyspark.sql import SparkSession
+from pyspark.ml.feature import StringIndexer, VectorAssembler
+from pyspark.ml.regression import LinearRegression
+from pyspark.ml.evaluation import RegressionEvaluator
+
+# Start Spark session
+spark = SparkSession.builder.appName("BigMartSalesPrediction").getOrCreate()
+
+# Load dataset
+data = spark.read.csv("/content/bigmart.csv", header=True, inferSchema=True)
+
+# Fill missing values
+data = data.fillna({'Item_Weight': data.agg({'Item_Weight': 'mean'}).first()[0],
+                    'Outlet_Size': 'Medium'})  # Filling missing Outlet_Size
+
+# Convert categorical columns using StringIndexer
+categorical_cols = ['Item_Fat_Content', 'Item_Type', 'Outlet_Identifier', 
+                    'Outlet_Size', 'Outlet_Location_Type', 'Outlet_Type']
+indexers = [StringIndexer(inputCol=col, outputCol=col + "_Index") for col in categorical_cols]
+
+for indexer in indexers:
+    data = indexer.fit(data).transform(data)
+
+# Feature engineering: Years of operation
+data = data.withColumn("Years_Operational", 2025 - data["Outlet_Establishment_Year"])
+
+# Assemble features
+feature_cols = ['Item_Weight', 'Item_Visibility', 'Item_MRP', 'Years_Operational'] + \
+               [col + "_Index" for col in categorical_cols]
+
+assembler = VectorAssembler(inputCols=feature_cols, outputCol="features")
+data = assembler.transform(data)
+
+# Train/test split
+train_data, test_data = data.randomSplit([0.8, 0.2], seed=42)
+
+# Train model
+lr = LinearRegression(labelCol="Item_Outlet_Sales", featuresCol="features")
+model = lr.fit(train_data)
+
+# Evaluate model
+predictions = model.transform(test_data)
+evaluator = RegressionEvaluator(labelCol="Item_Outlet_Sales", predictionCol="prediction", metricName="rmse")
+rmse = evaluator.evaluate(predictions)
+
+print(f"Root Mean Squared Error (RMSE): {rmse:.2f}")
+# Get the first row from the transformed data
+first_row = data.limit(1)
+
+# Predict on the first row
+first_prediction = model.transform(first_row)
+
+# Show the actual and predicted sales
+first_prediction.select("Item_Identifier", "Item_Outlet_Sales", "prediction").show()
+import matplotlib.pyplot as plt
+import pandas as pd
+
+# Convert Spark DataFrame to Pandas for plotting
+results_pd = predictions.select("Item_Outlet_Sales", "prediction").toPandas()
+
+# Plotting actual vs predicted
+plt.figure(figsize=(8, 6))
+plt.scatter(results_pd['Item_Outlet_Sales'], results_pd['prediction'], color='blue', alpha=0.6)
+plt.plot([results_pd['Item_Outlet_Sales'].min(), results_pd['Item_Outlet_Sales'].max()],
+         [results_pd['Item_Outlet_Sales'].min(), results_pd['Item_Outlet_Sales'].max()],
+         color='red', linestyle='--', label='Perfect Prediction')
+plt.title('Actual vs Predicted Sales')
+plt.xlabel('Actual Sales')
+plt.ylabel('Predicted Sales')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+
+
+
+
+
+
+Explanation:
+
+
+
+This code implements a **BigMart sales prediction** pipeline using **PySpark** for data processing and **machine learning**, followed by **matplotlib** for visualization. Here's a step-by-step explanation:
+
+---
+
+### 🔶 **1. Importing Required Libraries**
+```python
+from pyspark.sql import SparkSession
+from pyspark.ml.feature import StringIndexer, VectorAssembler
+from pyspark.ml.regression import LinearRegression
+from pyspark.ml.evaluation import RegressionEvaluator
+```
+- **SparkSession**: Entry point for using Spark.
+- **StringIndexer**: Converts categorical string columns into numeric indices.
+- **VectorAssembler**: Combines multiple columns into a single features vector.
+- **LinearRegression**: ML model to predict continuous values.
+- **RegressionEvaluator**: Measures model performance (e.g., RMSE).
+
+---
+
+### 🔶 **2. Start Spark Session**
+```python
+spark = SparkSession.builder.appName("BigMartSalesPrediction").getOrCreate()
+```
+Creates a Spark session named *BigMartSalesPrediction*.
+
+---
+
+### 🔶 **3. Load Dataset**
+```python
+data = spark.read.csv("/content/bigmart.csv", header=True, inferSchema=True)
+```
+- Reads a CSV file with a header.
+- `inferSchema=True` automatically infers column data types.
+
+---
+
+### 🔶 **4. Handle Missing Values**
+```python
+data = data.fillna({'Item_Weight': data.agg({'Item_Weight': 'mean'}).first()[0],
+                    'Outlet_Size': 'Medium'})
+```
+- Fills missing `Item_Weight` with the **mean** value.
+- Fills missing `Outlet_Size` with `'Medium'`.
+
+---
+
+### 🔶 **5. Convert Categorical Columns**
+```python
+categorical_cols = ['Item_Fat_Content', 'Item_Type', 'Outlet_Identifier', 
+                    'Outlet_Size', 'Outlet_Location_Type', 'Outlet_Type']
+indexers = [StringIndexer(inputCol=col, outputCol=col + "_Index") for col in categorical_cols]
+for indexer in indexers:
+    data = indexer.fit(data).transform(data)
+```
+- Converts string categorical columns to numeric using `StringIndexer`.
+
+---
+
+### 🔶 **6. Feature Engineering**
+```python
+data = data.withColumn("Years_Operational", 2025 - data["Outlet_Establishment_Year"])
+```
+- Calculates number of years each outlet has been operational.
+
+---
+
+### 🔶 **7. Assemble Features**
+```python
+feature_cols = ['Item_Weight', 'Item_Visibility', 'Item_MRP', 'Years_Operational'] + \
+               [col + "_Index" for col in categorical_cols]
+assembler = VectorAssembler(inputCols=feature_cols, outputCol="features")
+data = assembler.transform(data)
+```
+- Combines selected columns into a single **feature vector** used by the ML model.
+
+---
+
+### 🔶 **8. Train/Test Split**
+```python
+train_data, test_data = data.randomSplit([0.8, 0.2], seed=42)
+```
+- 80% data for training, 20% for testing.
+
+---
+
+### 🔶 **9. Train Linear Regression Model**
+```python
+lr = LinearRegression(labelCol="Item_Outlet_Sales", featuresCol="features")
+model = lr.fit(train_data)
+```
+- Creates and fits a **Linear Regression** model.
+
+---
+
+### 🔶 **10. Evaluate Model**
+```python
+predictions = model.transform(test_data)
+evaluator = RegressionEvaluator(labelCol="Item_Outlet_Sales", predictionCol="prediction", metricName="rmse")
+rmse = evaluator.evaluate(predictions)
+print(f"Root Mean Squared Error (RMSE): {rmse:.2f}")
+```
+- Predicts sales on test data.
+- Evaluates with **Root Mean Squared Error**.
+
+---
+
+### 🔶 **11. Predict on a Single Row**
+```python
+first_row = data.limit(1)
+first_prediction = model.transform(first_row)
+first_prediction.select("Item_Identifier", "Item_Outlet_Sales", "prediction").show()
+```
+- Predicts sales for the **first row** of the dataset.
+
+---
+
+### 🔶 **12. Visualization with Matplotlib**
+```python
+import matplotlib.pyplot as plt
+import pandas as pd
+results_pd = predictions.select("Item_Outlet_Sales", "prediction").toPandas()
+```
+- Converts Spark DataFrame to **Pandas** for plotting.
+
+```python
+plt.figure(figsize=(8, 6))
+plt.scatter(results_pd['Item_Outlet_Sales'], results_pd['prediction'], color='blue', alpha=0.6)
+plt.plot([...], [...], color='red', linestyle='--', label='Perfect Prediction')
+```
+- Scatter plot of **actual vs predicted** sales.
+- Red dashed line represents ideal predictions.
+
+---
+
+### ✅ **Final Output**
+- **RMSE** is printed to evaluate model performance.
+- A **scatter plot** visually compares actual vs predicted values.
+
+---
+
